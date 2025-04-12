@@ -53,8 +53,11 @@ If our paper is useful for your research, please consider citing it:
 ## Acknowledgements
 
 Code based on [raphael-sch/map2seq_vln](https://github.com/raphael-sch/map2seq_vln). 
+
 Touchdown splits based on: https://github.com/lil-lab/touchdown
+
 map2seq splits based on: https://map2seq.schumann.pub
+
 Panorama images can be downloaded here: https://sites.google.com/view/streetlearn/dataset
 
 Thanks for their great work. 

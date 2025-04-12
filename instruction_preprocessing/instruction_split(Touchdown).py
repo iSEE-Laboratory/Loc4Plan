@@ -81,8 +81,8 @@ def trajs_info(route_panoids, start_heading):
                 action.append(2)
 
             if not find_action:
-                # left 或者 right +forward 一次都到不了目标节点
-                # 说明可能要多转几次。这种情况下我们无法确定 gt 是 left 还是 right，就把 left、right 都加入动作序列。
+                # If neither left nor right + forward once can reach the target node
+                # This indicates that multiple turns may be needed. In this case, we cannot determine whether gt is left or right, so we add both left and right to the action sequence.
                 action.append(1)
                 action.append(2)
                 find_action = True
@@ -109,7 +109,7 @@ def trajs_info(route_panoids, start_heading):
         # print(f'{nav.graph_state}')
         info['end_state'] = nav.graph_state
         gt_traj_all.append(info)
-        heading_change.append(heading_2-heading_1)
+        heading_change.append(heading_2 - heading_1)
 
         if nav.graph_state[0] == route_panoids[-1]:
             break
@@ -118,15 +118,14 @@ def trajs_info(route_panoids, start_heading):
 
 def token_tagging(str, data_idx, instr_idx):
     """
-    提取出当前指令的动作短语(node)。
+    Extract the current instruction's action phrase (node).
     """
 
     def forbidden_word_detection(node, idx, chunks):
         for word, tag in node:
             if word == "n't" or word == "look":
                 return True
-        # print(111)
-        # 往前查2个词块，有没有after等介词
+        # Check the previous 2 chunks for words like "after"
         IN_list = ['before', 'after', 'if', 'once', 'until', 'chance', 'where', 'want']
         detection_idx = idx - 1
         while detection_idx >= idx - 4 and detection_idx >= 0:
@@ -134,7 +133,7 @@ def token_tagging(str, data_idx, instr_idx):
             if isinstance(detection_node, Tree):
                 for word, tag in detection_node:
                     if word in [',', '.', '!', 'and']:
-                        # 保证检查的词块和当前词块在同一个短句中
+                        # Ensure the checked chunk is in the same sentence as the current chunk
                         return False
                     elif word in IN_list:
                         return True
@@ -164,16 +163,16 @@ def token_tagging(str, data_idx, instr_idx):
             #     VB = True
         if direction and not action:
             return [True, -1]
-        # 确定 动词node 中是否包含方向，如果没有，尝试补上
+        # Determine if the verb chunk contains a direction; if not, try to add it
         if action and not direction:
-            # 确定 node_next 中有没有方向
+            # Determine if node_next contains a direction
             direction_next = False
             if node_next is not None:
                 for idx, item in enumerate(node_next):
                     if item[0] in direction_list:
                         direction_next = True
             if direction_next:
-                # 把 node_next 加入 node
+                # Add node_next to node
                 for item in node_next:
                     node.append(item)
                 return [True, 0]
@@ -186,20 +185,18 @@ def token_tagging(str, data_idx, instr_idx):
     direction_list = ["left", "right", "straight", "forward"]
     action_list = ["go", "turn", "take", "walk", "move", "make", "look"]
 
-
     words = nltk.word_tokenize(str)
     tagged = nltk.pos_tag(words)
-    # 把被错认为NP的动作词块修正为VB
     for idx, word in enumerate(tagged):
         if word[0] in action_list:
             word = list(word)
             word[1] = 'VB'
             tagged[idx] = tuple(word)
         elif word[0] in direction_list:
-            if_and  = False
-            if_and  = if_and or (idx + 1 < len(tagged) and tagged[idx+1][0] == 'and')
-            if_and  = if_and or (idx - 1 >= 0 and tagged[idx-1][0] == 'and')
-            if_the = False or (idx - 1 >= 0 and tagged[idx-1][0] in ['the', 'your', 'a', 'another'])
+            if_and = False
+            if_and = if_and or (idx + 1 < len(tagged) and tagged[idx + 1][0] == 'and')
+            if_and = if_and or (idx - 1 >= 0 and tagged[idx - 1][0] == 'and')
+            if_the = False or (idx - 1 >= 0 and tagged[idx - 1][0] in ['the', 'your', 'a', 'another'])
             if if_and and not if_the:
             # (tagged[idx+1][0] == 'and' or tagged[idx-1][0] == 'and') and tagged[idx-1][0] != 'the':
                 word = list(word)
@@ -211,25 +208,20 @@ def token_tagging(str, data_idx, instr_idx):
             VB: {<VBZ?|VBP?|VB?|VBD?|TO?|VBN?|JJ?|VBG?>*<RB?|RP?>*<VBZ?|VBP?|VB?|VBD?|TO?|VBN?|JJ?|VBG?>*<RB?|RP?>*} 
         """
     cp = nltk.RegexpParser(grammar)
-    # 重叠匹配则按照左边匹配优先
+    # Prefer left-aligned matches in case of overlapping matches
     chunks = cp.parse(tagged)
     # print(chunks)
     action_pos = []
     for idx, node in enumerate(chunks):
         if isinstance(node, Tree):
-            # # 词块包含单词 turn，且出现在句子开头
-            # if instr_idx == 0 and idx == 0 and node[0][0] in ['turn', 'orient']:
-            #     print(node)
-            # 排除单纯的副词、to
+            # Skip adverbs and "to"
             if node._label == 'VB' and not (len(node) == 1 and (node[0][1] == 'TO' or node[0][1] == 'RB')):
-                # 排除不想看到的词(don't look)，检测动作短语
-                node_next = chunks[idx+1] if idx < len(chunks)-1 else None
+                # Check if the chunk contains an action word and detect the action
+                node_next = chunks[idx + 1] if idx < len(chunks) - 1 else None
                 if_action, importance_score = action_detection(node, node_next, data_idx, instr_idx)
                 if not forbidden_word_detection(node, idx, chunks) and if_action:
-                    # print(node)
                     clear_action = get_clear_action(node)
                     action_pos.append([clear_action, instr_idx, importance_score, ''])
-                # 保证最终的动词短语里包含方向信息
         # elif node[1] in ['VB', 'VBD', 'VBG', 'VBN', 'VBP', 'VBZ']:
         #     print(node)
         #     clear_action = get_clear_action(node)
@@ -250,8 +242,8 @@ def get_clear_action(node):
 
 def get_action_list(info):
     """
-    输出当前指令对应轨迹的每个节点的导航情况
-    对于每个节点，输出：
+    Output the navigation information for each node in the trajectory corresponding to the current instruction
+    For each node, output:
     gt_action(heading_change)(junctions)
     """
     gt_actions, gt_junctions, gt_traj_all, heading_change = info
@@ -264,15 +256,16 @@ def get_action_list(info):
             print('')
     print('')
 
-def split_pair(instr_action_info, traj_info, instrs, data_idx, detection_type = 0):
-    def is_need_traj_action(traj_info, traj_idx, detection_type = 0):
+
+def split_pair(instr_action_info, traj_info, instrs, data_idx, detection_type=0):
+    def is_need_traj_action(traj_info, traj_idx, detection_type=0):
         """
-        检测当前 traj节点是否是我们需要的“满足一定条件的”动作节点
+        Check if the current trajectory node meets certain conditions
         """
         traj_actions, traj_junctions, traj_all, traj_heading_change = traj_info
         traj_at = traj_actions[traj_idx]
-        past_traj_at = traj_actions[traj_idx-1] if traj_idx > 0 else [1,2]
-        if detection_type in [0,1]:
+        past_traj_at = traj_actions[traj_idx - 1] if traj_idx > 0 else [1, 2]
+        if detection_type in [0, 1]:
             if traj_at[0] in [1, 2]:
                 gt_action = ['forward', 'left', 'right', 'stop']
                 traj_turn_item = [gt_action[item] for item in traj_at]
@@ -283,7 +276,7 @@ def split_pair(instr_action_info, traj_info, instrs, data_idx, detection_type = 
             if traj_at[0] == 0 and past_traj_at not in [1, 2] and traj_junctions[traj_idx] > 2:
                 traj_hc = traj_heading_change[traj_idx]
                 if abs(traj_hc) > 37 and abs(traj_hc) < 115:
-                    true_action = 'left' if traj_hc<0 else 'right'
+                    true_action = 'left' if traj_hc < 0 else 'right'
                     return True, [true_action]
             elif traj_at[0] in [1, 2]:
                 gt_action = ['forward', 'left', 'right', 'stop']
@@ -300,10 +293,10 @@ def split_pair(instr_action_info, traj_info, instrs, data_idx, detection_type = 
                 for i in [traj_idx - 1, traj_idx - 2, traj_idx]:
                     heading = traj_heading_change[i]
                     if abs(heading) > 180:
-                        # 需要修改
+                        # Adjust heading if it exceeds 180
                         heading = heading + 360 if heading < 0 else heading - 360
                     past_traj_hc += heading
-                if 0 in past_traj_at_1 and 0 in past_traj_at_2 and abs(past_traj_hc)>57:
+                if 0 in past_traj_at_1 and 0 in past_traj_at_2 and abs(past_traj_hc) > 57:
                     true_action = 'left' if past_traj_hc < 0 else 'right'
                     traj_heading_change[traj_idx - 1] = 0
                     traj_heading_change[traj_idx - 2] = 0
@@ -317,25 +310,25 @@ def split_pair(instr_action_info, traj_info, instrs, data_idx, detection_type = 
                 return False, []
         return False, []
 
-    def is_need_instr_action(instr_at, detection_type = 0):
+    def is_need_instr_action(instr_at, detection_type=0):
         """
-        检测当前 instr 节点是否是我们需要的“满足一定条件的”动作节点
+        Check if the current instruction node meets certain conditions
         """
-        if detection_type in [0,2,3]:
-            # 检测 left/right 且 inportance_score=0的节点
+        if detection_type in [0, 2, 3]:
+            # Check for "left" or "right" with importance_score=0
             if instr_at[0] in ['left', 'right'] and instr_at[2] == 0:
                 return True
             else:
                 return False
         elif detection_type == 1:
-            # 检测 left/right 且 importance_score=-1/0的节点
+            # Check for "left" or "right" with importance_score=-1 or 0
             if instr_at[0] in ['left', 'right']:
                 return True
             else:
                 return False
 
     def is_paired(traj_turn, instr_turn, traj_info):
-        # 计算呆在起点的节点数
+        # Calculate the number of nodes that stay at the starting point
         traj_actions, traj_junctions, traj_all, traj_heading_change = traj_info
         start_node_idx = traj_all[0]['start_state'][0]
         start_step = len(traj_actions)
@@ -356,7 +349,7 @@ def split_pair(instr_action_info, traj_info, instrs, data_idx, detection_type = 
         return True
 
     def print_instr_traj(stage_traj_pairs, stage_instr_pairs, instrs, traj_info):
-        # 输出拆分配对结果
+        # Output the split and paired results
         gt_actions, gt_junctions, gt_traj_all, heading_change = traj_info
         for i in range(len(stage_traj_pairs)):
             for instr_idx in stage_instr_pairs[i]:
@@ -372,49 +365,41 @@ def split_pair(instr_action_info, traj_info, instrs, data_idx, detection_type = 
         print()
 
     """
-    把整个导航分为多个阶段，然后把 traj 和 instr 的各个阶段匹配到对应的阶段
-    返回：
-    - `stage_instr_pair`: 存储 instr 中子指令和 stage 的配对关系
-	- `stage_traj_pair`: 存储 traj 中子动作和 stage 的配对关系
+    Divide the entire navigation into multiple stages and match the trajectory and instructions to the corresponding stages
+    Returns:
+    - `stage_instr_pair`: Stores the pairing of sub-instructions in `instr` with stages
+    - `stage_traj_pair`: Stores the pairing of sub-actions in `traj` with stages
     """
     gt_action = ['forward', 'left', 'right', 'stop']
-    # 确定该样本对应的导航有几个阶段
-    ## 确定 traj 有几个动作，最后一个动作后还有没有节点
+    # Determine how many stages the navigation has
+    ## Determine how many actions the trajectory has and whether there are nodes after the last action
     traj_actions, traj_junctions, traj_all, traj_heading_change = traj_info
     traj_remain = False
     traj_turn = []
-    # for traj_idx, traj_at in enumerate(traj_actions):
-    #     if traj_at[0] in [1,2]:
-    #         traj_turn_item = [gt_action[item] for item in traj_at]
-    #         traj_turn.append([traj_turn_item, traj_idx])
-    #         traj_remain = False
-    #     else:
-    #         traj_remain = True
     for traj_idx in range(len(traj_actions)):
         traj_at = traj_actions[traj_idx]
         is_need_traj_ac, traj_turn_item = is_need_traj_action(traj_info, traj_idx, detection_type)
         if is_need_traj_ac:
-            # traj_turn_item = [gt_action[item] for item in traj_at]
             traj_turn.append([traj_turn_item, traj_idx])
             traj_remain = False
         else:
             traj_remain = True
-    ## 确定 instr 有几个动作，最后一个动作所属句子后，还有没有其他句子
+    ## Determine how many actions the instructions have and whether there are sentences after the last action
     instr_turn = []
     instr_last_action_instr_id = -1
     for instr_at in instr_action_info:
         if is_need_instr_action(instr_at, detection_type):
             instr_turn.append([instr_at[0], instr_at[1]])
             instr_last_action_instr_id = instr_at[1]
-    if instr_last_action_instr_id < len(instrs)-1:
+    if instr_last_action_instr_id < len(instrs) - 1:
         instr_remain = True
     else:
         instr_remain = False
 
-    # 开始匹配
+    # Start matching
     if is_paired(traj_turn, instr_turn, traj_info):
-        # 匹配成功，开始配对
-        pair_stages = len(traj_turn)+1 if (instr_remain and traj_remain) else len(traj_turn)
+        # Match successfully, start pairing
+        pair_stages = len(traj_turn) + 1 if (instr_remain and traj_remain) else len(traj_turn)
         stage_instr_pairs = []
         stage_traj_pairs = []
         traj_stage_start_idx = 0
@@ -423,7 +408,7 @@ def split_pair(instr_action_info, traj_info, instrs, data_idx, detection_type = 
             stage_traj_pair_item = []
             stage_instr_pair_item = []
             if pair_idx == len(traj_turn):
-                # 说明这是end阶段
+                # This is the end stage
                 for idx in range(traj_stage_start_idx, len(traj_info[0])):
                     stage_traj_pair_item.append(idx)
                 traj_stage_start_idx = len(traj_info[0])
@@ -432,30 +417,30 @@ def split_pair(instr_action_info, traj_info, instrs, data_idx, detection_type = 
                     stage_instr_pair_item.append(idx)
                 instr_stage_start_idx = len(instrs)
             else:
-                for idx in range(traj_stage_start_idx, traj_turn[pair_idx][1]+1):
+                for idx in range(traj_stage_start_idx, traj_turn[pair_idx][1] + 1):
                     stage_traj_pair_item.append(idx)
                 traj_stage_start_idx = traj_turn[pair_idx][1] + 1
 
-                if instr_stage_start_idx == instr_turn[pair_idx][1]+1:
-                    # 当前instr和上一个instr属于同一个stage
+                if instr_stage_start_idx == instr_turn[pair_idx][1] + 1:
+                    # The current instruction and the previous one belong to the same stage
                     stage_instr_pair_item = stage_instr_pairs[-1]
                 else:
-                    for idx in range(instr_stage_start_idx, instr_turn[pair_idx][1]+1):
+                    for idx in range(instr_stage_start_idx, instr_turn[pair_idx][1] + 1):
                         stage_instr_pair_item.append(idx)
                     instr_stage_start_idx = instr_turn[pair_idx][1] + 1
             stage_traj_pairs.append(stage_traj_pair_item)
             stage_instr_pairs.append(stage_instr_pair_item)
         if traj_stage_start_idx < len(traj_info[0]):
-            # 还没存储完
+            # Not all trajectory actions are stored yet
             if traj_stage_start_idx == 0:
-                # 整个导航只有一个阶段
+                # The entire navigation is one stage
                 stage_traj_pair_item = []
             else:
                 stage_traj_pair_item = stage_traj_pairs[-1]
             for idx in range(traj_stage_start_idx, len(traj_info[0])):
                 stage_traj_pair_item.append(idx)
         if instr_stage_start_idx < len(instrs):
-            # 还没存储完
+            # Not all instructions are stored yet
             if instr_stage_start_idx == 0:
                 stage_instr_pair_item = []
             else:
@@ -465,7 +450,7 @@ def split_pair(instr_action_info, traj_info, instrs, data_idx, detection_type = 
         print_instr_traj(stage_traj_pairs, stage_instr_pairs, instrs, traj_info)
         return True, stage_traj_pairs, stage_instr_pairs
     else:
-        # 匹配失败
+        # Matching failed
         print('--------------------------------------------------------')
         get_action_list(traj_info)
         print('--------------------------------------------------------')
@@ -479,17 +464,16 @@ def get_node_instr_pair(if_pair_success, stage_traj_pairs, stage_instr_pairs, tr
     node_list = sample_info['route_panoids']
 
     if not if_pair_success:
-        # 构建 stage_traj_pairs, stage_instr_pairs
+        # Build stage_traj_pairs and stage_instr_pairs
         stage_traj_pairs = [list(range(traj_action_len))]
         stage_instr_pairs = [list(range(instr_len))]
 
-    # 开始构建 node_instr_pair
-    ## 构建 node_sub_pair
+    # Start building node_instr_pair
+    ## Build node_sub_pair
     node_stage_pair = []
     for stage_idx, stage_traj_item in enumerate(stage_traj_pairs):
         for traj_action_idx in stage_traj_item:
             node_idx = node_list.index(traj_info[2][traj_action_idx]['start_state'][0])
-            # node_stage_pair[node_list.index(node_idx)].append(stage_idx)
             if node_idx >= len(node_stage_pair):
                 node_stage_pair.append([stage_idx])
             else:
@@ -498,7 +482,7 @@ def get_node_instr_pair(if_pair_success, stage_traj_pairs, stage_instr_pairs, tr
     node_stage_pair.append(node_stage_pair[-1])
     assert len(node_stage_pair) == len(node_list)
 
-    ## 构建 node_instr_pair
+    ## Build node_instr_pair
     node_instr_pair = []
     for node_idx, node_stage_item in enumerate(node_stage_pair):
         for stage_idx in node_stage_item:
@@ -529,7 +513,7 @@ def main():
             instrs.pop()
 
         instr_action_info = []
-        # last_instr_action_instr_id 指示最后一个importance=0的左右动作在哪一句
+        # last_instr_action_instr_id indicates the last importance=0 left/right action in which sentence
         last_instr_action_instr_id = 0
         for instr_idx, instr in enumerate(instrs):
             # print(instr)
@@ -539,12 +523,12 @@ def main():
                 if item[0] in ['left', 'right'] and item[2] == 0:
                     last_instr_action_instr_id = item[1]
 
-        # 3种配对策略，详见obsidian
+        # 4 types of pairing strategies, see Obsidian for details
         if_pair_success_final = False
         confidence_score = 4
-        detection_type = [0,1,2,3]
+        detection_type = [0, 1, 2, 3]
         for type in detection_type:
-            if_pair_success, stage_traj_pairs, stage_instr_pairs= split_pair(instr_action_info, traj_info, instrs, i, type)
+            if_pair_success, stage_traj_pairs, stage_instr_pairs = split_pair(instr_action_info, traj_info, instrs, i, type)
             if if_pair_success:
                 if_pair_success_final = True
                 confidence_score = type
@@ -556,11 +540,10 @@ def main():
         node_instr_pair_all[data['route_id']]['confidence_score'] = confidence_score
 
     success = sum(if_pair_success_all)
-    print(success/len(if_pair_success_all))
+    print(success / len(if_pair_success_all))
 
     import pickle as pkl
     pkl.dump(node_instr_pair_all, open(f'/root/VLN/code/thl_vln/result_visualization/tmp_files/{dataset}_node_instr_pair_all.pkl', 'wb'))
-
 
 
 if __name__ == "__main__":
