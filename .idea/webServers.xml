@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="e82d652b-e725-454f-b860-6fd3b1919eed" name="meng(667) (project level)">
+        <fileTransfer accessType="SFTP" host="222.200.185.32" port="3389" sshConfigId="fb8025d5-052b-4d6a-8b89-ff6b4b5da34f" sshConfig="meng(667)">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

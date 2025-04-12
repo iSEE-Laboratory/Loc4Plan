@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=5 python main.py --test --dataset touchdown_seen --img_feat_dir /home/huilin/VLN/code/map2seq_vln/panorama_preprocessing/fourth_layer/output --config configs/all_test.yaml --exp_name all_instr_1 --resume TC_best

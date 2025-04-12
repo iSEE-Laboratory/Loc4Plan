@@ -1,0 +1,4 @@
+CUDA_VISIBLE_DEVICES=1 python main.py --dataset map2seq_seen --img_feat_dir /root/VLN/code/map2seq_vln/panorama_preprocessing/fourth_layer/output --config configs/all.yaml --exp_name all_instr_1_progress_debug &
+CUDA_VISIBLE_DEVICES=1 python main.py --dataset map2seq_unseen --img_feat_dir /root/VLN/code/map2seq_vln/panorama_preprocessing/fourth_layer/output --config configs/all.yaml --exp_name all_instr_1_progress_debug &
+CUDA_VISIBLE_DEVICES=3 python main.py --dataset touchdown_seen --img_feat_dir /root/VLN/code/map2seq_vln/panorama_preprocessing/fourth_layer/output --config configs/all.yaml --exp_name all_instr_1_progress_debug &
+CUDA_VISIBLE_DEVICES=2 python main.py --dataset touchdown_unseen --img_feat_dir /root/VLN/code/map2seq_vln/panorama_preprocessing/fourth_layer/output --config configs/all.yaml --exp_name all_instr_1_progress_debug &

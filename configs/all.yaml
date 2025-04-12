@@ -1,0 +1,9 @@
+use_image_features: 'resnet_fourth_layer'
+#iterations: 10
+
+## progress_score
+use_progress_score: True
+
+
+# subInstruction attention
+use_subInstruction: True
